@@ -37,3 +37,15 @@ def describe_person(name, age):
         return print('Вы неправильно ввели свой возраст')
 
 describe_person(name, age)
+
+#zadanie 3.1
+number = int(input('Введите простое число: '))
+def is_prime(number):
+    for i in range(2, number):
+        if number % i == 0:
+            return False
+        else:
+            return True
+if is_prime(number) == True:
+    print('Число', number ,'- простое')
+else:
