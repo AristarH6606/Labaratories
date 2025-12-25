@@ -36,4 +36,4 @@ def describe_person(name, age):
     else:
         return print('Вы неправильно ввели свой возраст')
 
-describe_person(name, age)
+describe_person(name, age)kj
