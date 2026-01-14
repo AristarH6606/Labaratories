@@ -21,3 +21,4 @@ fuel_type = input("Введите тип топлива автомобиля: ")
 car = Car(make, model, fuel_type)
 
 print("Информация о автомобиле:")
+print(car.get_info())

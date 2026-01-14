@@ -1,5 +1,5 @@
-from Function import math_operations
-from Function import string_operations
+from Functions import math_operations
+from Functions import string_operations
 
 result1 = math_operations.add(5, 3)
 result2 = math_operations.multiply(4, 6)
