@@ -49,3 +49,4 @@ def is_prime(number):
 if is_prime(number) == True:
     print('Число', number ,'- простое')
 else:
+    print('Число', number, '- не простое')
