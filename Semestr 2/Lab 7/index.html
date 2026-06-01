@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Чат</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #333333;
+        }
+        h1 {
+            color: #999;
+            text-align: center;
+        }
+        #login {
+            background: #87CEFA;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #chat {
+            background: #87CEFA;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .input-group {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        input {
+            flex: 1;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #messages {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #messages li {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+        #messages li.system {
+            background: #e9ecef;
+            border-left-color: #6c757d;
+            color: #495057;
+            font-style: italic;
+        }
+        #messages li.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        #messages li.private {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+        #onlineCounter {
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .info {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>💬 WebSocket Чат</h1>
+
+    <div id="login">
+        <h3>Вход в чат</h3>
+        <div class="input-group">
+            <input type="text" id="username" placeholder="Введите имя пользователя">
+            <button onclick="connect()">Подключиться</button>
+        </div>
+        <div class="info">Имя должно быть от 1 до 50 символов</div>
+    </div>
+
+    <div id="chat">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>👤 Вы вошли как: <strong><span id="currentUser"></span></strong></div>
+            <div id="onlineCounter">👥 Онлайн: 0</div>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="messageInput" autocomplete="off" placeholder="Введите сообщение... (/w username сообщение для приватного чата)">
+            <button onclick="sendMessage()">📤 Отправить</button>
+        </div>
+
+        <ul id="messages"></ul>
+        <div class="info">💡 Подсказка: для приватного сообщения используйте /w username сообщение</div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentUsername = null;
+
+        function connect() {
+            const username = document.getElementById("username").value.trim();
+
+            if (!username) {
+                alert("Введите имя пользователя");
+                return;
+            }
+
+            if (username.length > 50) {
+                alert("Имя не должно превышать 50 символов");
+                return;
+            }
+
+            currentUsername = username;
+
+            ws = new WebSocket(`ws://localhost:8000/ws?username=${encodeURIComponent(username)}`);
+
+            ws.onopen = function() {
+                document.getElementById("login").style.display = "none";
+                document.getElementById("chat").style.display = "block";
+                document.getElementById("currentUser").textContent = username;
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    switch(data.type) {
+                        case "system":
+                            addMessage("system", data.text);
+                            if (data.online !== undefined) {
+                                updateOnlineCount(data.online);
+                            }
+                            break;
+                        case "message":
+                            addMessage("message", data.user + ": " + data.text);
+                            if (data.online !== undefined) {
+                                updateOnlineCount(data.online);
+                            }
+                            break;
+                        case "private":
+                            addMessage("private", "🔒 [Приватно от " + data.from + "]: " + data.text);
+                            break;
+                        case "private_sent":
+                            addMessage("private", "🔒 [Приватно для " + data.to + "]: " + data.text + " (отправлено)");
+                            break;
+                        case "error":
+                            addMessage("error", "❌ Ошибка: " + data.detail);
+                            break;
+                        default:
+                            addMessage("message", event.data);
+                    }
+                } catch(e) {
+                    addMessage("message", event.data);
+                }
+            };
+
+            ws.onerror = function(error) {
+                addMessage("error", "❌ Ошибка соединения");
+                console.error("WebSocket error:", error);
+            };
+
+            ws.onclose = function(event) {
+                let message = "🔌 Соединение закрыто";
+                if (event.code === 1008) {
+                    message = "❌ Ошибка: " + (event.reason || "Имя пользователя уже занято");
+                }
+                addMessage("system", message);
+                document.getElementById("login").style.display = "block";
+                document.getElementById("chat").style.display = "none";
+                updateOnlineCount(0);
+            };
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage("error", "❌ Нет соединения с сервером");
+                return;
+            }
+
+            const input = document.getElementById("messageInput");
+            const text = input.value.trim();
+
+            if (!text) return;
+
+            if (text.startsWith("/w ")) {
+                ws.send(JSON.stringify({
+                    type: "command",
+                    text: text
+                }));
+            } else {
+                ws.send(JSON.stringify({
+                    type: "message",
+                    text: text
+                }));
+            }
+
+            input.value = '';
+            input.focus();
+        }
+
+        function addMessage(type, text) {
+            const messages = document.getElementById("messages");
+            const message = document.createElement("li");
+            message.textContent = text;
+
+            if (type === "system") {
+                message.className = "system";
+            } else if (type === "error") {
+                message.className = "error";
+            } else if (type === "private") {
+                message.className = "private";
+            }
+
+            messages.appendChild(message);
+            message.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
+
+        function updateOnlineCount(count) {
+            const counter = document.getElementById("onlineCounter");
+            if (counter) {
+                counter.textContent = "👥 Онлайн: " + count;
+            }
+        }
+
+        document.addEventListener("keypress", function(e) {
+            if (e.key === "Enter" && document.getElementById("chat").style.display === "block") {
+                sendMessage();
+            }
+        });
+
+        document.getElementById("username").focus();
+    </script>
+</body>
+</html>
